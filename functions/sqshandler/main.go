@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-lambda-sqs-example/functions/common"
-	"go-lambda-sqs-example/functions/util"
+	"go-lambda-sqs-example/functions/helper"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
@@ -32,12 +31,8 @@ func run(sqsEvent events.SQSEvent) error {
 	}
 
 	// init SQS service
-	sqsSession, err := session.NewSession(&aws.Config{Region: aws.String(common.AWSRegion)})
-	if err != nil {
-		return err
-	}
-	sqsSvc := sqs.New(sqsSession)
-	urlRes, err := util.GetQueueURL(sqsSvc, common.SQSName)
+	sqsHelper := helper.NewSQS(common.AWSRegion)
+	urlRes, err := sqsHelper.GetQueueURL(common.SQSName)
 	if err != nil {
 		return err
 	}
@@ -71,7 +66,8 @@ func run(sqsEvent events.SQSEvent) error {
 			Entries:  processedReceiptHandles,
 		}
 
-		_, err = util.DeleteMessageBatch(sqsSvc, &deleteMessageRequest)
+		// do not check DeleteMessageBatchOutput because SQS message max retry only 1
+		_, err := sqsHelper.DeleteMessageBatch(&deleteMessageRequest)
 		if err != nil {
 			fmt.Println("failed to delete message batch with err: ", err)
 			return err

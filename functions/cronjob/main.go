@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"go-lambda-sqs-example/functions/common"
-	"go-lambda-sqs-example/functions/util"
+	"go-lambda-sqs-example/functions/helper"
 	"strconv"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
@@ -31,18 +30,14 @@ func main() {
 func run(args map[string]interface{}) error {
 	ctx := context.Background()
 	// fetch data
-	listData, err := getData(ctx)
+	listData, err := fetchData(ctx)
 	if err != nil {
 		return err
 	}
 
 	// init SQS service
-	sqsSession, err := session.NewSession(&aws.Config{Region: aws.String(common.AWSRegion)})
-	if err != nil {
-		return err
-	}
-	sqsSvc := sqs.New(sqsSession)
-	urlRes, err := util.GetQueueURL(sqsSvc, common.SQSName)
+	sqsHelper := helper.NewSQS(common.AWSRegion)
+	urlRes, err := sqsHelper.GetQueueURL(common.SQSName)
 	if err != nil {
 		return err
 	}
@@ -68,27 +63,27 @@ func run(args map[string]interface{}) error {
 
 		batchMessageData = append(batchMessageData, messageRequest)
 
-		// Send batch message when batch size = maximum batch message or when user is the last of listData
+		// send batch message when batch size = maximum batch message or when user is the last of listData
 		if len(batchMessageData) == common.MaximumSQSBatchMessage || i == (len(listData)-1) {
 			sendMessageRequest := sqs.SendMessageBatchInput{
 				QueueUrl: urlRes.QueueUrl,
 				Entries:  batchMessageData,
 			}
 
-			_, err = sqsSvc.SendMessageBatch(&sendMessageRequest)
+			_, err = sqsHelper.SendMessageBatch(&sendMessageRequest)
 			if err != nil {
 				return err
 			}
 
-			// Remove all in batchMessageData to append next data
+			// remove all in batchMessageData to append next data
 			batchMessageData = batchMessageData[:0]
 		}
 	}
 	return nil
 }
 
-// getData represent for fetching data to execute in schedule time
-func getData(ctx context.Context) ([]CronData, error) {
+// fetchData represent for fetching data to execute in schedule time
+func fetchData(ctx context.Context) ([]CronData, error) {
 	var (
 		listData []CronData
 	)
